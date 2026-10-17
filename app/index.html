@@ -148,6 +148,13 @@ dialog input[type=text]{width:100%;padding:12px 14px;font-size:1.1rem;border-rad
 .crow{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
 dialog{max-height:92vh;overflow:auto}
 .opt input{min-width:0;padding:11px 12px;border:1px solid var(--line);border-radius:12px;background:var(--bg);min-height:44px}
+/* [SaaS] foto da opção de variação */
+.opt .ophoto{grid-column:1/-1;display:flex;align-items:flex-end;gap:10px;padding:8px 0 4px}
+.opt .ophoto>img,.opt .ophoto-ph{width:44px;height:44px;border-radius:10px;object-fit:cover;flex:none;border:1px solid var(--line);background:var(--track);display:grid;place-items:center}
+.opt .ophoto-ph svg{width:20px;height:20px;stroke:var(--muted);fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.opt .ophoto .fld{flex:1;min-width:0;margin:0}
+.opt .ophoto .sub{margin:0;align-self:center}
+.opt select{width:100%;min-width:0;padding:11px 12px;border:1px solid var(--line);border-radius:12px;background:var(--bg);min-height:44px}
 .opt .ib{font-size:1.3rem}
 .vf{display:flex;flex-wrap:wrap;gap:8px 10px;align-items:center;margin-top:12px}.cnt{margin-left:auto;font-weight:700;font-size:.9rem}.over{color:var(--bad)}
 /* variações pré configuradas */
@@ -625,7 +632,7 @@ body.cart-open #btt{right:calc(var(--drawer) + 20px)}
   <div class="sec-h"><h2 id="ftitle">Novo produto</h2><button class="btn" id="back">Voltar à lista</button></div>
   <div class="fgrid">
    <div class="card"><div class="sech"><h3>Fotos</h3><span class="pill" id="phN"></span></div>
-    <p class="sub">Até 5 fotos. Qualquer formato de imagem; todas ficam em 1000 × 1000 px no formato WebP. A primeira é a foto principal.</p>
+    <p class="sub" id="phInfo">Até 5 fotos. Qualquer formato de imagem; todas ficam em 1000 × 1000 px no formato WebP. A primeira é a foto principal.</p>
     <div class="photos" id="photos"></div></div>
    <div class="card"><h3>Dados do produto</h3>
     <div class="ff">

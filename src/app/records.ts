@@ -33,7 +33,7 @@ export function isNetworkError(err: unknown): boolean {
 
 export function isLimitError(err: unknown): boolean {
   const e = err as { code?: string; hint?: string; message?: string };
-  return e?.hint === 'product_limit' || /plano permite até/i.test(e?.message ?? '');
+  return e?.hint === 'product_limit' || e?.hint === 'photo_limit' || /plano permite até/i.test(e?.message ?? '');
 }
 
 export function isCollection(k: string): k is Collection {

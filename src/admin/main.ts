@@ -98,7 +98,7 @@ function draw(): void {
     return `<tr>
       <td class="store"><b>${esc(s.name)}</b><a href="/c/${esc(s.slug)}" target="_blank" rel="noopener">/c/${esc(s.slug)}</a></td>
       <td data-label="Dono"><div>${esc(s.contact_name || '')}<div class="small muted">${esc(s.owner_email || 'sem dono')}</div>${s.contact_phone ? `<div class="small muted">${esc(s.contact_phone)}</div>` : ''}</div></td>
-      <td data-label="Plano"><div>${esc(planById(s.plan).label)}<div class="small muted">${s.member_count}/${s.max_users} usuário(s)</div></div></td>
+      <td data-label="Plano"><div>${esc(planById(s.plan).label)}<div class="small muted">${s.member_count}/${s.max_users} usuário(s) · ${s.max_photos} fotos/produto</div></div></td>
       <td data-label="Validade" class="num">${s.expires_at ? fmtDate(s.expires_at) : 'Sem vencimento'}</td>
       <td data-label="Uso" class="num small"><div>${useLine(s)}${s.sale_count} vendas<div class="muted">ativo ${s.last_activity_at ? fmtDate(s.last_activity_at) : 'nunca'}</div></div></td>
       <td data-label="Situação"><span class="chip ${chip[0]}">${chip[1]}</span></td>
@@ -145,7 +145,7 @@ function openStore(s: AdminStore | null): void {
   $('statusWrap').hidden = isNew;
   $('dangerActs').hidden = isNew;
   $('sErr').hidden = true;
-  $<HTMLSelectElement>('sPlan').innerHTML = PLANS.map((p) => `<option value="${p.id}">${esc(p.label)} · ${p.maxUsers} usuário(s) · ${productLimitLabel(p.maxProducts)} produtos${p.price ? ' · ' + esc(p.price) : ''}</option>`).join('');
+  $<HTMLSelectElement>('sPlan').innerHTML = PLANS.map((p) => `<option value="${p.id}">${esc(p.label)} · ${p.maxUsers} usuário(s) · ${productLimitLabel(p.maxProducts)} produtos · ${p.maxPhotos} fotos${p.price ? ' · ' + esc(p.price) : ''}</option>`).join('');
   const set = (id: string, v: string) => { $<HTMLInputElement>(id).value = v; };
   set('sName', s?.name ?? '');
   set('sSlug', s?.slug ?? '');
@@ -154,6 +154,7 @@ function openStore(s: AdminStore | null): void {
   set('sPhone', s?.contact_phone ?? '');
   $<HTMLSelectElement>('sPlan').value = s?.plan ?? DEFAULT_PLAN.id;
   set('sMax', String(s?.max_users ?? DEFAULT_PLAN.maxUsers));
+  set('sPhotos', String(s?.max_photos ?? DEFAULT_PLAN.maxPhotos));
   set('sProd', s ? (s.max_products == null ? '' : String(s.max_products)) : (DEFAULT_PLAN.maxProducts == null ? '' : String(DEFAULT_PLAN.maxProducts)));
   const in30 = new Date(Date.now() + 30 * 86_400_000).toISOString();
   set('sExp', toDateInput(isNew ? in30 : s.expires_at));
@@ -172,6 +173,7 @@ function bindStoreForm(): void {
     const plan = planById($<HTMLSelectElement>('sPlan').value);
     $<HTMLInputElement>('sMax').value = String(plan.maxUsers);
     $<HTMLInputElement>('sProd').value = plan.maxProducts == null ? '' : String(plan.maxProducts);
+    $<HTMLInputElement>('sPhotos').value = String(plan.maxPhotos);
   };
   $('sCancel').onclick = () => $<HTMLDialogElement>('storeDlg').close();
   $('storeDlg').addEventListener('close', () => { slugTouched = false; });
@@ -197,6 +199,7 @@ function bindStoreForm(): void {
       slug: slug.value.trim(),
       plan: $<HTMLSelectElement>('sPlan').value,
       maxUsers: Number($<HTMLInputElement>('sMax').value) || 1,
+      maxPhotos: Math.floor(Number($<HTMLInputElement>('sPhotos').value)),
       maxProducts: $<HTMLInputElement>('sProd').value.trim() === '' ? null : Math.max(0, Math.floor(Number($<HTMLInputElement>('sProd').value))),
       expiresAt: fromDateInput($<HTMLInputElement>('sExp').value),
       contactPhone: $<HTMLInputElement>('sPhone').value.trim() || null,
@@ -204,6 +207,7 @@ function bindStoreForm(): void {
     };
     if (!body.name) return fail('Informe o nome da loja.');
     if (body.maxProducts !== null && !Number.isFinite(body.maxProducts)) return fail('Máximo de produtos: use um número ou deixe em branco.');
+    if (!Number.isFinite(body.maxPhotos) || body.maxPhotos < 1 || body.maxPhotos > 50) return fail('Fotos por produto: use um número de 1 a 50.');
     if (!/^[a-z0-9](?:[a-z0-9-]{1,38}[a-z0-9])$/.test(body.slug)) return fail('Endereço: 3 a 40 letras minúsculas, números ou hífen (sem hífen nas pontas).');
     void busy($<HTMLButtonElement>('sSave'), async () => {
       try {

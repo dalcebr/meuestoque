@@ -72,6 +72,7 @@ function renderStore(): void {
   $('plan').textContent = plan.label;
   $('expires').textContent = s.expires_at ? fmtDate(s.expires_at) : 'Sem vencimento';
   $('users').textContent = m.role === 'owner' ? `${team.length || 1} de ${s.max_users}` : String(s.max_users);
+  $('photos').textContent = `até ${s.max_photos ?? 5}`;
   void drawProductUsage(s.id, s.max_products);
   const link = m.role === 'owner' ? salesLink(`Olá! Quero renovar/mudar o plano da loja ${s.name} (${s.slug}).`) : '';
   if (link) { const a = $<HTMLAnchorElement>('renew'); a.href = link; a.hidden = false; }

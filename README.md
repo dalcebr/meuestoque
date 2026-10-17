@@ -58,8 +58,9 @@ no **GitHub**, no **Supabase** e na **Cloudflare**.
    `supabase/migrations/` (cole o conteúdo inteiro e clique em **Run**):
    1. `20260101000000_init.sql` — tabelas, regras de segurança (RLS), bucket de fotos e tempo real
    2. `20260201000000_limite_produtos_e_catalogo.sql` — limite de produtos, seção inicial padrão do catálogo e fotos de até 10 MB
+   3. `20260301000000_limite_fotos.sql` — limite de fotos por produto
 
-   Os dois podem ser rodados de novo sem problema.
+   Todos podem ser rodados de novo sem problema.
 3. **Desligue o cadastro público** (só você cria acessos):
    **Authentication → Sign In / Providers → Email** → desative **Allow new users to sign up**.
    Mantenha o provedor Email habilitado.
@@ -143,7 +144,7 @@ Crie o repositório como **privado** no GitHub antes do `push`. O workflow
    (apaga dados, fotos e logins da equipe; exige digitar o endereço da loja).
 
 **Planos e limites:** edite `src/shared/plans.ts` para mudar nomes, preço exibido,
-limite de usuários e limite de produtos (`maxProducts: null` = sem limite). Ao escolher
+limite de usuários, limite de produtos (`maxProducts: null` = sem limite) e fotos por produto (`maxPhotos`, de 1 a 50). Ao escolher
 um plano no painel, os limites dele são preenchidos, e você pode ajustá-los só para
 aquela loja. Os dois limites são aplicados no servidor:
 
@@ -153,7 +154,19 @@ aquela loja. Os dois limites são aplicados no servidor:
   Editar, vender e excluir produtos continua liberado mesmo acima do limite (por exemplo,
   se você reduzir o limite de uma loja que já tem mais produtos).
 
-O dono acompanha o uso em **Conta** ("Produtos: 80 de 100") e você vê na lista de lojas.
+- **Fotos por produto:** o cadastro mostra "3 de 5" e some o botão de adicionar no limite;
+  o banco recusa produto com mais fotos que o plano. Se você reduzir o limite, produtos
+  antigos com mais fotos continuam editáveis, só não ganham fotos novas.
+
+O dono acompanha o uso em **Conta** ("Produtos: 80 de 100", "Fotos por produto: até 5")
+e você vê na lista de lojas.
+
+### Foto por variação
+
+No cadastro do produto, cada opção de variação (ex.: Cor → Azul) tem o campo
+**Foto desta opção**, que lista as fotos do produto. No catálogo, quando o cliente
+toca na opção, a foto ligada a ela vira a foto principal, e o carrinho mostra essa foto.
+Ao trocar a foto principal ou remover uma foto, as ligações se ajustam sozinhas.
 
 **Consultas úteis** (vencendo, vencidas, espaço por loja): `supabase/scripts/consultas_uteis.sql`.
 
@@ -172,7 +185,7 @@ Content-Type: application/json
 ```
 
 Campos opcionais: `"email"` do dono (no lugar de `slug`), `"plan"`, `"maxUsers"`,
-`"maxProducts"` (número, ou `null` para sem limite) e `"unblock"` (padrão `true`:
+`"maxProducts"` (número, ou `null` para sem limite), `"maxPhotos"` (1 a 50) e `"unblock"` (padrão `true`:
 desbloqueia a loja).
 
 Como os gateways (Mercado Pago, Asaas, Stripe, Pagar.me…) enviam formatos diferentes,

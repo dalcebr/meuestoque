@@ -24,6 +24,8 @@ interface SaaSBridge {
   signOut(): void;
   /** Mensagem de bloqueio se o plano não permite mais um produto; '' se pode. */
   productLimitMessage(currentCount: number): string;
+  /** Fotos por produto permitidas pelo plano. */
+  maxPhotos(): number;
 }
 
 declare global {
@@ -172,7 +174,7 @@ async function pump(c: Collection): Promise<void> {
       if (!isNetworkError(err)) {
         // Recusa definitiva (ex.: limite do plano): não adianta repetir sozinho.
         const msg = isLimitError(err)
-          ? String((err as { message?: string }).message) + ' O produto novo não foi salvo na nuvem.'
+          ? String((err as { message?: string }).message) + ' Essa alteração não foi salva na nuvem.'
           : 'Não foi possível salvar uma alteração. Recarregue a página e tente de novo.';
         notify(msg);
         l.failed = false;
@@ -385,6 +387,10 @@ const bridge: SaaSBridge = {
     nameTimer = window.setTimeout(() => {
       void sb().rpc('set_my_display_name', { p_store: ctx!.current!.store_id, p_name: name });
     }, 800);
+  },
+
+  maxPhotos() {
+    return ctx?.current?.store.max_photos ?? 5;
   },
 
   productLimitMessage(count) {

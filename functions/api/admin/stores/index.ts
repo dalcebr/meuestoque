@@ -25,6 +25,7 @@ const CreateStore = z.object({
   maxUsers: z.number().int().min(1).max(100),
   /** null = sem limite */
   maxProducts: z.number().int().min(0).max(1_000_000).nullable().optional(),
+  maxPhotos: z.number().int().min(1).max(50).optional(),
   expiresAt: isoDate.nullable(),
   contactName: z.string().trim().max(80).nullable().optional(),
   contactPhone: z.string().trim().max(20).nullable().optional(),
@@ -49,6 +50,7 @@ export const onRequestPost = handle<Ctx>(async ({ request, env }) => {
         plan: b.plan,
         max_users: b.maxUsers,
         max_products: b.maxProducts ?? null,
+        max_photos: b.maxPhotos ?? 5,
         expires_at: b.expiresAt,
         owner_id: owner.id,
         contact_name: b.contactName ?? b.ownerName,
@@ -76,7 +78,7 @@ export const onRequestPost = handle<Ctx>(async ({ request, env }) => {
       },
       client_id: 'server',
     });
-    await audit(sb, { store_id: store.id, actor: user, action: 'store.create', details: { store_name: b.name, slug: b.slug, plano: b.plan, produtos: b.maxProducts ?? 'sem limite', dono: b.ownerEmail, validade: b.expiresAt } });
+    await audit(sb, { store_id: store.id, actor: user, action: 'store.create', details: { store_name: b.name, slug: b.slug, plano: b.plan, produtos: b.maxProducts ?? 'sem limite', fotos: b.maxPhotos ?? 5, dono: b.ownerEmail, validade: b.expiresAt } });
     return json({ store }, 201);
   } catch (err) {
     await sb.auth.admin.deleteUser(owner.id).catch(() => undefined);

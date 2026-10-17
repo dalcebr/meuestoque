@@ -11,6 +11,7 @@ export interface Store {
   plan: string;
   max_users: number;
   max_products: number | null;
+  max_photos: number;
   expires_at: string | null;
   owner_id: string | null;
   contact_name: string | null;

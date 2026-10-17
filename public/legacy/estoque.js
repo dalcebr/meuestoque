@@ -9,6 +9,9 @@
  *  - nome e botão Sair: vêm da conta logada (Supabase Auth)
  *  - saveP: respeita o limite de produtos do plano
  *  - editor de fotos: WebP com qualidade 0.9 (antes 1.0, arquivos muito maiores)
+ *  - MAXF (fotos por produto) vem do plano da loja
+ *  - opções de variação podem ter uma foto (o.img = índice em p.imgs); no catálogo,
+ *    escolher a opção troca a foto principal
  */
 
 // Painel Início: tudo é calculado a partir dos dados reais (produtos, vendas e estoque).
@@ -116,7 +119,8 @@ function esc(s){return String(s).replace(/[&<>"']/g,function(c){return{'&':'&amp
 var NOIMG_SVG='<svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-3.8-3.8a2 2 0 0 0-2.8 0L3 21"/></svg>';
 function sum(g){return g.opts.reduce(function(a,o){return a+o.q},0)}
 /* [SaaS] armazenamento na nuvem (Supabase) — ver src/app/bridge.ts */
-function idb(){return window.SaaS.ready().then(function(){db=true;var n=window.SaaS.userName();if(n&&!CATALOG){nome=n;tick();if(typeof updateAccountCard==='function')updateAccountCard()}})}
+function idb(){return window.SaaS.ready().then(function(){db=true;var n=window.SaaS.userName();if(!CATALOG){MAXF=window.SaaS.maxPhotos()||MAXF;var fi=$('phInfo');if(fi)fi.textContent='Até '+MAXF+' fotos no seu plano. Qualquer formato de imagem; todas ficam em 1000 × 1000 px no formato WebP. A primeira é a foto principal. Você pode ligar cada foto a uma opção de variação (ex.: uma cor).'}
+  if(n&&!CATALOG){nome=n;tick();if(typeof updateAccountCard==='function')updateAccountCard()}})}
 function kvGet(k){return window.SaaS.kvGet(k)}
 function kvSet(k,v){return window.SaaS.kvSet(k,v)}
 function blobUrl(b){if(typeof b==='string')return b;if(!b)return '';var u=URLS.get(b);if(!u){u=URL.createObjectURL(b);URLS.set(b,u)}return u}
@@ -180,7 +184,7 @@ $('pgrid').onclick=function(e){var b=e.target.closest('.pc');if(b)openForm(P.fin
 $('newP').onclick=function(){openForm()};$('back').onclick=$('cancel2').onclick=showList;
 /* formulário */
 function openForm(p){
-  cur=p?Object.assign({},p,{imgs:p.imgs.slice(),vars:p.vars.map(function(g){return{name:g.name,opts:g.opts.map(function(o){return{n:o.n,q:o.q,p:o.p==null?null:o.p,c:o.c==null?null:o.c}})}})}):{id:null,imgs:[],vars:[]};
+  cur=p?Object.assign({},p,{imgs:p.imgs.slice(),vars:p.vars.map(function(g){return{name:g.name,opts:g.opts.map(function(o){return{n:o.n,q:o.q,p:o.p==null?null:o.p,c:o.c==null?null:o.c,img:o.img==null?null:o.img}})}})}):{id:null,imgs:[],vars:[]};
   FIELDS.forEach(function(k){$('f-'+k).value=cur[k]==null?'':cur[k]});
   $('ftitle').textContent=p?'Editar produto':'Novo produto';$('delBtn').hidden=!p;$('ferr').hidden=true;
   $('plist').hidden=true;$('plist').style.display='none';$('pform').hidden=false;$('pform').style.display='grid';
@@ -196,12 +200,22 @@ function drawPh(){
   var h=cur.imgs.map(function(b,i){return '<div class="ph"><img alt="Foto '+(i+1)+'" src="'+blobUrl(b)+'">'+(i==0?'<span class="tag">Principal</span>':'')+'<div class="mini"><button type="button" data-a="edit" data-i="'+i+'">Editar</button>'+(i?'<button type="button" data-a="main" data-i="'+i+'">Principal</button>':'')+'<button type="button" data-a="del" data-i="'+i+'">Remover</button></div></div>'}).join('');
   if(cur.imgs.length<MAXF)h+='<div class="ph"><button type="button" class="add" data-a="add">Adicionar foto</button></div>';
   $('photos').innerHTML=h;$('phN').textContent=cur.imgs.length+' de '+MAXF;
+  if(cur.vars&&cur.vars.length)drawVars(); /* [SaaS] atualiza a escolha de foto das opções */
+}
+/* [SaaS] foto de cada opção de variação = índice em cur.imgs; ajusta quando as fotos mudam de lugar */
+function optImgs(fn){(cur.vars||[]).forEach(function(g){g.opts.forEach(function(o){if(o.img!=null)o.img=fn(o.img)})})}
+function optPhotoHtml(o){
+  if(!cur.imgs.length)return '<div class="ophoto"><span class="ophoto-ph">'+NOIMG_SVG+'</span><span class="sub">Adicione fotos ao produto para ligar uma delas a esta opção.</span></div>';
+  var v=o.img!=null&&o.img<cur.imgs.length?o.img:null;
+  return '<div class="ophoto">'+(v!=null?'<img alt="" src="'+blobUrl(cur.imgs[v])+'">':'<span class="ophoto-ph">'+NOIMG_SVG+'</span>')+
+    '<label class="fld"><span>Foto desta opção</span><select data-k="oimg"><option value="">Nenhuma (mantém a foto atual)</option>'+
+    cur.imgs.map(function(_,k){return '<option value="'+k+'"'+(v===k?' selected':'')+'>Foto '+(k+1)+(k===0?' (principal)':'')+'</option>'}).join('')+'</select></label></div>';
 }
 $('photos').onclick=async function(e){
   var a=e.target.closest('button');if(!a)return;var i=+a.dataset.i,k=a.dataset.a;
   if(k==='add')return $('file').click();
-  if(k==='del')cur.imgs.splice(i,1);
-  else if(k==='main')cur.imgs.unshift(cur.imgs.splice(i,1)[0]);
+  if(k==='del'){cur.imgs.splice(i,1);optImgs(function(x){return x===i?null:x>i?x-1:x})}
+  else if(k==='main'){cur.imgs.unshift(cur.imgs.splice(i,1)[0]);optImgs(function(x){return x===i?0:x<i?x+1:x})}
   else{var b=await crop(cur.imgs[i]);if(b)cur.imgs[i]=b}
   drawPh();
 };
@@ -297,7 +311,7 @@ function drawVars(){
      '<label class="fld"><span>Quantidade</span><input data-k="oq" type="number" min="0" step="1" inputmode="numeric" value="'+o.q+'"></label>'+
      '<label class="fld"><span>Preço (opcional)</span><input data-k="op" type="number" min="0" step="0.01" inputmode="decimal" value="'+(o.p==null?'':o.p)+'" placeholder="'+pph()+'"></label>'+
      '<label class="fld full"><span>Custo (opcional)</span><input data-k="oc" type="number" min="0" step="0.01" inputmode="decimal" value="'+(o.c==null?'':o.c)+'" placeholder="'+cph()+'"></label>'+
-     '</div><button type="button" class="ib rm" data-a="ro" aria-label="Remover opção">×</button></div>'}).join('')+
+     '</div><button type="button" class="ib rm" data-a="ro" aria-label="Remover opção">×</button>'+optPhotoHtml(o)+'</div>'}).join('')+
    '<div class="vf"><button type="button" class="btn" data-a="ao">Adicionar opção</button>'+(g.opts.length?'':'<button type="button" class="btn" data-a="pm">Usar P, M, G, GG</button>')+'<button type="button" class="btn" data-a="sp">Salvar como pré configurada</button><span class="cnt" data-c></span></div></div>'}).join('');
   $('addVar').hidden=cur.vars.length>=MAXVARS;cnt();drawPres();
 }
@@ -310,13 +324,14 @@ $('vars').oninput=function(e){
     if(k==='on')o.n=t.value;
     else if(k==='op')o.p=t.value===''?null:Math.max(0,+t.value||0);
     else if(k==='oc')o.c=t.value===''?null:Math.max(0,+t.value||0);
+    else if(k==='oimg'){o.img=t.value===''?null:+t.value;drawVars();return}
     else{o.q=Math.max(0,parseInt(t.value)||0);var ex=sum(g)-(parseInt($('f-stock').value)||0);
       if(ex>0){o.q=Math.max(0,o.q-ex);t.value=o.q;toast('A soma não pode passar do estoque do produto.')}}}
   cnt();
 };
 $('vars').onclick=function(e){
   var b=e.target.closest('button');if(!b)return;var gi=+b.closest('.vg').dataset.g,g=cur.vars[gi],a=b.dataset.a;
-  if(a==='rg')cur.vars.splice(gi,1);else if(a==='ao')g.opts.push({n:'',q:0,p:null,c:null});
+  if(a==='rg')cur.vars.splice(gi,1);else if(a==='ao')g.opts.push({n:'',q:0,p:null,c:null,img:null});
   else if(a==='pm')g.opts=['P','M','G','GG'].map(function(n){return{n:n,q:0,p:null,c:null}});
   else if(a==='sp'){saveAsPre(g);return}
   else if(a==='ro')g.opts.splice(+b.closest('.opt').dataset.o,1);
@@ -347,7 +362,7 @@ $('saveP').onclick=async function(){
   var er=check();if(!er&&!P.some(function(x){return x.id===cur.id}))er=window.SaaS.productLimitMessage(P.length); /* [SaaS] limite do plano */
   $('ferr').textContent=er;$('ferr').hidden=!er;if(er)return;
   var p={id:cur.id||Date.now().toString(36),name:cur.name,desc:cur.desc,cat:cur.cat,sku:cur.sku,price:+cur.price,cost:+cur.cost||0,stock:parseInt(cur.stock),min:parseInt(cur.min)||0,imgs:cur.imgs,
-    vars:cur.vars.map(function(g){return{name:g.name.trim(),opts:g.opts.map(function(o){return{n:o.n.trim(),q:o.q,p:o.p==null?null:o.p,c:o.c==null?null:o.c}})}})};
+    vars:cur.vars.map(function(g){return{name:g.name.trim(),opts:g.opts.map(function(o){return{n:o.n.trim(),q:o.q,p:o.p==null?null:o.p,c:o.c==null?null:o.c,img:o.img==null||o.img>=cur.imgs.length?null:o.img}})}})};
   var i=P.findIndex(function(x){return x.id===p.id});var old=P[i];if(i<0)P.unshift(p);else P[i]=p;if(!old&&p.stock>0)logMv(p,p.stock,'in','Estoque inicial');else if(old&&old.stock!==p.stock)logMv(p,p.stock-old.stock,'adj','Ajuste no cadastro do produto');
   await Promise.all([kvSet('products',P),kvSet('moves',M)]);syncStock();render();showList();drawReports();toast('Produto salvo.');
 };
@@ -541,7 +556,7 @@ $('saList').onclick=function(e){
 };
 /* cancelar, reativar e excluir */
 // Cópia das variações preservando TODOS os campos (nome, quantidade, preço e custo).
-function cloneVars(p){return p.vars.map(function(g){return{name:g.name,opts:g.opts.map(function(o){return{n:o.n,q:o.q,p:o.p==null?null:o.p,c:o.c==null?null:o.c}})}})}
+function cloneVars(p){return p.vars.map(function(g){return{name:g.name,opts:g.opts.map(function(o){return{n:o.n,q:o.q,p:o.p==null?null:o.p,c:o.c==null?null:o.c,img:o.img==null?null:o.img}})}})}
 // Localiza a opção de uma venda no cadastro atual (pelo nome; se o nome mudou, pela posição).
 function locOpt(vars,v){
   var gi=vars.findIndex(function(g){return g.name===v.g});if(gi<0)gi=v.gi;
@@ -1480,6 +1495,8 @@ function cartTotal(){return CART.reduce(function(a,l){var p=P.find(function(x){r
 // carrinho (aba lateral esquerda) — o pedido fica salvo no navegador do cliente
 function cartUnits(){return CART.reduce(function(a,l){return a+l.qty},0)}
 function cartCount(){return plural(cartUnits(),'item','itens')}
+/* [SaaS] foto da primeira opção escolhida que tem foto ligada (senão, a principal) */
+function varImg(p,vars){for(var k=0;k<(vars||[]).length;k++){var g=p.vars[vars[k].gi],o=g&&g.opts[vars[k].oi];if(o&&o.img!=null&&o.img<p.imgs.length)return o.img}return 0}
 function drawCatCart(){
   cleanCart();
   $('catCartCount').textContent=CART.length?'('+cartCount()+')':'';
@@ -1487,7 +1504,7 @@ function drawCatCart(){
     var p=P.find(function(x){return x.id===l.pid}),u=unitFor(p,l.vars),vt=l.vars.map(function(v){return v.g+': '+v.o}).join(', ');
     var max=Math.min.apply(null,[p.stock].concat(l.vars.map(function(v){var g=p.vars[v.gi],o=g&&g.opts[v.oi];return o?o.q:0})));
     var noMax=cartQtyP(p.id)>=p.stock||l.qty>=max;   // estoque geral ou da opção esgotado
-    return'<div class="cd-item">'+catPhoto(p,0,'cd-img')+'<div class="cd-info"><strong>'+esc(p.name)+'</strong>'+(p.cat?'<small>'+esc(p.cat)+'</small>':'')+(vt?'<small>'+esc(vt)+'</small>':'')+'<small>'+brl(u.price)+' cada</small>'+
+    return'<div class="cd-item">'+catPhoto(p,varImg(p,l.vars),'cd-img')+'<div class="cd-info"><strong>'+esc(p.name)+'</strong>'+(p.cat?'<small>'+esc(p.cat)+'</small>':'')+(vt?'<small>'+esc(vt)+'</small>':'')+'<small>'+brl(u.price)+' cada</small>'+
       '<div class="cd-ctl"><span class="qty"><button type="button" data-a="dec" data-i="'+i+'" aria-label="Diminuir quantidade de '+esc(p.name)+'">−</button><b>'+l.qty+'</b><button type="button" data-a="inc" data-i="'+i+'" aria-label="Aumentar quantidade de '+esc(p.name)+'"'+(noMax?' disabled title="Estoque máximo atingido"':'')+'>+</button></span>'+
       '<button type="button" class="linerm" data-a="rm" data-i="'+i+'" aria-label="Remover '+esc(p.name)+' do carrinho">Remover</button></div></div><b class="cd-line">'+brl(u.price*l.qty)+'</b></div>'}).join('')
     :'<div class="empty">Seu carrinho está vazio.<br><br><button type="button" class="btn main" data-a="close">Continuar comprando</button></div>';
@@ -1570,7 +1587,7 @@ $('catProd').onclick=function(e){
   if(a==='fav')toggleFav(p.id);
   else if(a==='view')return openCart();
   else if(a==='th')pp.img=+b.dataset.i;
-  else if(a==='opt'){var gi=b.dataset.gi,oi=+b.dataset.oi;if(pp.sel[gi]===oi)delete pp.sel[gi];else pp.sel[gi]=oi}
+  else if(a==='opt'){var gi=b.dataset.gi,oi=+b.dataset.oi;if(pp.sel[gi]===oi)delete pp.sel[gi];else{pp.sel[gi]=oi;var oo=p.vars[gi]&&p.vars[gi].opts[oi];if(oo&&oo.img!=null&&oo.img<p.imgs.length)pp.img=oo.img} /* [SaaS] foto da variação */}
   else if(a==='qm')pp.qty=Math.max(1,pp.qty-1);
   else if(a==='qp')pp.qty++;
   else if(a==='add'){
