@@ -1,0 +1,10 @@
+# Cloudflare Pages — https://developers.cloudflare.com/pages/functions/wrangler-configuration/
+name = "estoque-da-loja"
+pages_build_output_dir = "dist"
+compatibility_date = "2024-10-01"
+compatibility_flags = ["nodejs_compat"]
+
+# Variáveis NÃO secretas podem ficar aqui. Os segredos (SUPABASE_SERVICE_ROLE_KEY,
+# WEBHOOK_SECRET) devem ser cadastrados no painel da Cloudflare ou em .dev.vars (local).
+[vars]
+# SUPABASE_URL = "https://SEU-PROJETO.supabase.co"
