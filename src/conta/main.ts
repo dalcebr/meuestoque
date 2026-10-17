@@ -72,6 +72,7 @@ function renderStore(): void {
   $('plan').textContent = plan.label;
   $('expires').textContent = s.expires_at ? fmtDate(s.expires_at) : 'Sem vencimento';
   $('users').textContent = m.role === 'owner' ? `${team.length || 1} de ${s.max_users}` : String(s.max_users);
+  void drawProductUsage(s.id, s.max_products);
   const link = m.role === 'owner' ? salesLink(`Olá! Quero renovar/mudar o plano da loja ${s.name} (${s.slug}).`) : '';
   if (link) { const a = $<HTMLAnchorElement>('renew'); a.href = link; a.hidden = false; }
   if (ctx.memberships.length > 1) {
@@ -80,6 +81,19 @@ function renderStore(): void {
     sel.innerHTML = ctx.memberships.map((x) => `<option value="${x.store_id}" ${x.store_id === m.store_id ? 'selected' : ''}>${esc(x.store.name)}</option>`).join('');
     sel.onchange = () => { rememberStore(sel.value); location.reload(); };
   }
+}
+
+async function drawProductUsage(storeId: string, max: number | null): Promise<void> {
+  const { count } = await sb().from('store_records').select('id', { count: 'exact', head: true })
+    .eq('store_id', storeId).eq('coll', 'products');
+  const n = count ?? 0;
+  $('prods').textContent = max == null ? `${n} · sem limite` : `${n} de ${max}`;
+  const bar = $('prodBar');
+  if (max == null) { bar.hidden = true; return; }
+  const pct = max ? Math.min(100, Math.round((n / max) * 100)) : 100;
+  bar.hidden = false;
+  bar.classList.toggle('full', pct >= 100);
+  (bar.firstElementChild as HTMLElement).style.width = `${pct}%`;
 }
 
 /* ---------------- senha e nome ---------------- */

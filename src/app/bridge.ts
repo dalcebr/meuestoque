@@ -12,7 +12,7 @@ import { configured, env } from '../shared/env';
 import { loadContext, loginUrl, mustChangePassword, displayName, signOut, type Context } from '../shared/session';
 import { accessState, daysLeft } from '../shared/types';
 import type { ModuleId } from '../shared/perms';
-import { CLIENT_ID, RecordStore, isCollection, type Collection } from './records';
+import { CLIENT_ID, RecordStore, isCollection, isLimitError, isNetworkError, type Collection } from './records';
 
 interface SaaSBridge {
   ready(): Promise<void>;
@@ -22,13 +22,22 @@ interface SaaSBridge {
   userName(): string;
   setDisplayName(name: string): void;
   signOut(): void;
+  /** Mensagem de bloqueio se o plano não permite mais um produto; '' se pode. */
+  productLimitMessage(currentCount: number): string;
 }
 
 declare global {
   interface Window {
     SaaS: SaaSBridge;
     show?: (v: string) => void;
+    toast?: (m: string) => void;
   }
+}
+
+/** Aviso usando o toast da interface original (ou alert, se ainda não carregou). */
+function notify(message: string): void {
+  if (typeof window.toast === 'function') window.toast(message);
+  else console.warn(message);
 }
 
 const CATALOG = /^\/c\//.test(location.pathname) || /[?&]catalogo(=|&|$)/.test(location.search);
@@ -159,8 +168,18 @@ async function pump(c: Collection): Promise<void> {
       l.delay = 2000;
     } catch (err) {
       console.error('[SaaS] falha ao salvar', c, err);
-      l.failed = true;
       if (isAccessDenied(err)) void recheckAccess();
+      if (!isNetworkError(err)) {
+        // Recusa definitiva (ex.: limite do plano): não adianta repetir sozinho.
+        const msg = isLimitError(err)
+          ? String((err as { message?: string }).message) + ' O produto novo não foi salvo na nuvem.'
+          : 'Não foi possível salvar uma alteração. Recarregue a página e tente de novo.';
+        notify(msg);
+        l.failed = false;
+        waiters.forEach((w) => w());
+        break;
+      }
+      l.failed = true;
       window.clearTimeout(l.retry);
       l.retry = window.setTimeout(() => { l.dirty = true; void pump(c); }, l.delay);
       l.delay = Math.min(l.delay * 2, 60_000);
@@ -238,6 +257,7 @@ async function bootPanel(): Promise<void> {
 
   slug = c.current.store.slug;
   store = new RecordStore(sb(), c.current.store_id);
+  store.onWarning = notify;
   cache = await store.loadAll();
   try { localStorage.setItem('nome', displayName(c)); } catch { /* sem storage */ }
 
@@ -365,6 +385,12 @@ const bridge: SaaSBridge = {
     nameTimer = window.setTimeout(() => {
       void sb().rpc('set_my_display_name', { p_store: ctx!.current!.store_id, p_name: name });
     }, 800);
+  },
+
+  productLimitMessage(count) {
+    const max = ctx?.current?.store.max_products;
+    if (max == null || count < max) return '';
+    return `Seu plano permite até ${max} ${max === 1 ? 'produto' : 'produtos'}. Exclua algum ou fale com a gente para mudar de plano.`;
   },
 
   signOut() {

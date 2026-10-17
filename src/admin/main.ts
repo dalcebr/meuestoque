@@ -3,7 +3,7 @@ import { api } from '../shared/supabase';
 import { env } from '../shared/env';
 import { $, busy, confirmDialog, esc, fmtDate, fmtDateTime, generatePassword, initTheme, requireConfig, toast, toggleTheme } from '../shared/ui';
 import { loadContext, loginUrl, signOut } from '../shared/session';
-import { PLANS, planById, DEFAULT_PLAN } from '../shared/plans';
+import { PLANS, planById, DEFAULT_PLAN, productLimitLabel } from '../shared/plans';
 import { accessState, daysLeft, type AdminStore, type AuditEntry } from '../shared/types';
 import { showCredentials } from '../shared/credentials';
 
@@ -97,17 +97,23 @@ function draw(): void {
     const chip = { active: ['ok', 'Em dia'], soon: ['warn', `Vence em ${Math.max(left ?? 0, 0)}d`], expired: ['bad', 'Vencida'], blocked: ['bad', 'Bloqueada'] }[b];
     return `<tr>
       <td class="store"><b>${esc(s.name)}</b><a href="/c/${esc(s.slug)}" target="_blank" rel="noopener">/c/${esc(s.slug)}</a></td>
-      <td>${esc(s.contact_name || '')}<div class="small muted">${esc(s.owner_email || 'sem dono')}</div>${s.contact_phone ? `<div class="small muted">${esc(s.contact_phone)}</div>` : ''}</td>
-      <td>${esc(planById(s.plan).label)}<div class="small muted">${s.member_count}/${s.max_users} usuário(s)</div></td>
-      <td class="num">${s.expires_at ? fmtDate(s.expires_at) : 'Sem vencimento'}</td>
-      <td class="num small">${s.product_count} produtos<br>${s.sale_count} vendas<div class="muted">ativo ${s.last_activity_at ? fmtDate(s.last_activity_at) : 'nunca'}</div></td>
-      <td><span class="chip ${chip[0]}">${chip[1]}</span></td>
-      <td><div class="row" style="flex-wrap:nowrap">
+      <td data-label="Dono"><div>${esc(s.contact_name || '')}<div class="small muted">${esc(s.owner_email || 'sem dono')}</div>${s.contact_phone ? `<div class="small muted">${esc(s.contact_phone)}</div>` : ''}</div></td>
+      <td data-label="Plano"><div>${esc(planById(s.plan).label)}<div class="small muted">${s.member_count}/${s.max_users} usuário(s)</div></div></td>
+      <td data-label="Validade" class="num">${s.expires_at ? fmtDate(s.expires_at) : 'Sem vencimento'}</td>
+      <td data-label="Uso" class="num small"><div>${useLine(s)}${s.sale_count} vendas<div class="muted">ativo ${s.last_activity_at ? fmtDate(s.last_activity_at) : 'nunca'}</div></div></td>
+      <td data-label="Situação"><span class="chip ${chip[0]}">${chip[1]}</span></td>
+      <td class="acts"><div class="row" style="flex-wrap:nowrap">
         <button class="btn sm" data-a="renew" data-id="${s.id}" title="Somar 30 dias">+30 dias</button>
         <button class="btn sm" data-a="edit" data-id="${s.id}">Editar</button>
       </div></td>
     </tr>`;
   }).join('') : `<tr><td colspan="7" class="empty">${stores.length ? 'Nenhuma loja neste filtro.' : 'Nenhuma loja ainda. Toque em “Nova loja” para vender o primeiro acesso.'}</td></tr>`;
+}
+
+function useLine(s: AdminStore): string {
+  if (s.max_products == null) return `${s.product_count} produtos<br>`;
+  const pct = s.max_products ? Math.min(100, Math.round((s.product_count / s.max_products) * 100)) : 100;
+  return `${s.product_count}/${s.max_products} produtos<span class="use-bar ${pct >= 100 ? 'full' : ''}" title="${pct}% do limite"><i style="width:${pct}%"></i></span>`;
 }
 
 function bindRows(): void {
@@ -139,7 +145,7 @@ function openStore(s: AdminStore | null): void {
   $('statusWrap').hidden = isNew;
   $('dangerActs').hidden = isNew;
   $('sErr').hidden = true;
-  $<HTMLSelectElement>('sPlan').innerHTML = PLANS.map((p) => `<option value="${p.id}">${esc(p.label)} · ${p.maxUsers} usuário(s)${p.price ? ' · ' + esc(p.price) : ''}</option>`).join('');
+  $<HTMLSelectElement>('sPlan').innerHTML = PLANS.map((p) => `<option value="${p.id}">${esc(p.label)} · ${p.maxUsers} usuário(s) · ${productLimitLabel(p.maxProducts)} produtos${p.price ? ' · ' + esc(p.price) : ''}</option>`).join('');
   const set = (id: string, v: string) => { $<HTMLInputElement>(id).value = v; };
   set('sName', s?.name ?? '');
   set('sSlug', s?.slug ?? '');
@@ -148,6 +154,7 @@ function openStore(s: AdminStore | null): void {
   set('sPhone', s?.contact_phone ?? '');
   $<HTMLSelectElement>('sPlan').value = s?.plan ?? DEFAULT_PLAN.id;
   set('sMax', String(s?.max_users ?? DEFAULT_PLAN.maxUsers));
+  set('sProd', s ? (s.max_products == null ? '' : String(s.max_products)) : (DEFAULT_PLAN.maxProducts == null ? '' : String(DEFAULT_PLAN.maxProducts)));
   const in30 = new Date(Date.now() + 30 * 86_400_000).toISOString();
   set('sExp', toDateInput(isNew ? in30 : s.expires_at));
   $<HTMLSelectElement>('sStatus').value = s?.status ?? 'active';
@@ -161,7 +168,11 @@ function bindStoreForm(): void {
   let slugTouched = false;
   name.oninput = () => { if (!editing && !slugTouched) slug.value = slugify(name.value); };
   slug.oninput = () => { slugTouched = true; slug.value = slug.value.toLowerCase().replace(/[^a-z0-9-]/g, ''); };
-  $<HTMLSelectElement>('sPlan').onchange = () => { $<HTMLInputElement>('sMax').value = String(planById($<HTMLSelectElement>('sPlan').value).maxUsers); };
+  $<HTMLSelectElement>('sPlan').onchange = () => {
+    const plan = planById($<HTMLSelectElement>('sPlan').value);
+    $<HTMLInputElement>('sMax').value = String(plan.maxUsers);
+    $<HTMLInputElement>('sProd').value = plan.maxProducts == null ? '' : String(plan.maxProducts);
+  };
   $('sCancel').onclick = () => $<HTMLDialogElement>('storeDlg').close();
   $('storeDlg').addEventListener('close', () => { slugTouched = false; });
 
@@ -186,11 +197,13 @@ function bindStoreForm(): void {
       slug: slug.value.trim(),
       plan: $<HTMLSelectElement>('sPlan').value,
       maxUsers: Number($<HTMLInputElement>('sMax').value) || 1,
+      maxProducts: $<HTMLInputElement>('sProd').value.trim() === '' ? null : Math.max(0, Math.floor(Number($<HTMLInputElement>('sProd').value))),
       expiresAt: fromDateInput($<HTMLInputElement>('sExp').value),
       contactPhone: $<HTMLInputElement>('sPhone').value.trim() || null,
       notes: $<HTMLTextAreaElement>('sNotes').value.trim() || null,
     };
     if (!body.name) return fail('Informe o nome da loja.');
+    if (body.maxProducts !== null && !Number.isFinite(body.maxProducts)) return fail('Máximo de produtos: use um número ou deixe em branco.');
     if (!/^[a-z0-9](?:[a-z0-9-]{1,38}[a-z0-9])$/.test(body.slug)) return fail('Endereço: 3 a 40 letras minúsculas, números ou hífen (sem hífen nas pontas).');
     void busy($<HTMLButtonElement>('sSave'), async () => {
       try {
@@ -257,7 +270,7 @@ async function loadAudit(): Promise<void> {
       const d = a.details ?? {};
       const store = (d.store_name as string) || (a.store_id ? byId.get(a.store_id) : '') || '';
       const extra = Object.entries(d).filter(([k]) => k !== 'store_name').map(([k, v]) => `${k}: ${typeof v === 'object' ? JSON.stringify(v) : v}`).join(' · ');
-      return `<tr><td class="num">${fmtDateTime(a.created_at)}</td><td>${esc(a.actor_email ?? 'sistema')}</td><td><b>${esc(ACTIONS[a.action] ?? a.action)}</b>${store ? `<div class="small muted">${esc(store)}</div>` : ''}</td><td class="small muted">${esc(extra)}</td></tr>`;
+      return `<tr><td class="store"><b>${esc(ACTIONS[a.action] ?? a.action)}</b>${store ? `<div class="small muted">${esc(store)}</div>` : ''}</td><td data-label="Quando" class="num">${fmtDateTime(a.created_at)}</td><td data-label="Quem">${esc(a.actor_email ?? 'sistema')}</td><td data-label="Detalhes" class="small muted" style="word-break:break-word">${esc(extra)}</td></tr>`;
     }).join('') : '<tr><td colspan="4" class="empty">Sem registros ainda.</td></tr>';
   } catch (e) {
     $('auditRows').innerHTML = `<tr><td colspan="4" class="empty">${esc((e as Error).message)}</td></tr>`;

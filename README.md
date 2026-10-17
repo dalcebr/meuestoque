@@ -54,10 +54,12 @@ no **GitHub**, no **Supabase** e na **Cloudflare**.
 ### 1. Supabase — criar o banco
 
 1. Em [supabase.com](https://supabase.com), crie um projeto. Região sugerida: **South America (São Paulo)**.
-2. Abra **SQL Editor → New query**, cole **todo** o conteúdo de
-   `supabase/migrations/20260101000000_init.sql` e clique em **Run**.
-   Isso cria as tabelas, as regras de segurança (RLS), o bucket de fotos e o tempo real.
-   Pode rodar de novo sem problema, se precisar.
+2. Abra **SQL Editor → New query** e rode, **nesta ordem**, cada arquivo de
+   `supabase/migrations/` (cole o conteúdo inteiro e clique em **Run**):
+   1. `20260101000000_init.sql` — tabelas, regras de segurança (RLS), bucket de fotos e tempo real
+   2. `20260201000000_limite_produtos_e_catalogo.sql` — limite de produtos, seção inicial padrão do catálogo e fotos de até 10 MB
+
+   Os dois podem ser rodados de novo sem problema.
 3. **Desligue o cadastro público** (só você cria acessos):
    **Authentication → Sign In / Providers → Email** → desative **Allow new users to sign up**.
    Mantenha o provedor Email habilitado.
@@ -140,8 +142,18 @@ Crie o repositório como **privado** no GitHub antes do `push`. O workflow
 5. Inadimplente: **Editar → Situação: Bloqueada**. Desistiu de vez: **Excluir loja**
    (apaga dados, fotos e logins da equipe; exige digitar o endereço da loja).
 
-**Planos:** edite `src/shared/plans.ts` para mudar nomes, limite de usuários e preço
-exibido. O limite de usuários é aplicado no servidor quando o dono adiciona alguém.
+**Planos e limites:** edite `src/shared/plans.ts` para mudar nomes, preço exibido,
+limite de usuários e limite de produtos (`maxProducts: null` = sem limite). Ao escolher
+um plano no painel, os limites dele são preenchidos, e você pode ajustá-los só para
+aquela loja. Os dois limites são aplicados no servidor:
+
+- **Usuários:** checado quando o dono adiciona alguém à equipe.
+- **Produtos:** o sistema avisa na hora de cadastrar ("Seu plano permite até N produtos")
+  e o banco recusa produtos além do limite, mesmo vindos de outro aparelho ou de backup.
+  Editar, vender e excluir produtos continua liberado mesmo acima do limite (por exemplo,
+  se você reduzir o limite de uma loja que já tem mais produtos).
+
+O dono acompanha o uso em **Conta** ("Produtos: 80 de 100") e você vê na lista de lojas.
 
 **Consultas úteis** (vencendo, vencidas, espaço por loja): `supabase/scripts/consultas_uteis.sql`.
 
@@ -159,8 +171,9 @@ Content-Type: application/json
 { "slug": "nome-da-loja", "days": 30 }
 ```
 
-Campos opcionais: `"email"` do dono (no lugar de `slug`), `"plan"`, `"maxUsers"` e
-`"unblock"` (padrão `true`: desbloqueia a loja).
+Campos opcionais: `"email"` do dono (no lugar de `slug`), `"plan"`, `"maxUsers"`,
+`"maxProducts"` (número, ou `null` para sem limite) e `"unblock"` (padrão `true`:
+desbloqueia a loja).
 
 Como os gateways (Mercado Pago, Asaas, Stripe, Pagar.me…) enviam formatos diferentes,
 o caminho mais simples é uma automação no **n8n/Make/Zapier**: "pagamento aprovado" →

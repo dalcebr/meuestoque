@@ -12,6 +12,7 @@ const UpdateStore = z.object({
   status: z.enum(['active', 'blocked']).optional(),
   plan: z.string().trim().min(1).max(40).optional(),
   maxUsers: z.number().int().min(1).max(100).optional(),
+  maxProducts: z.number().int().min(0).max(1_000_000).nullable().optional(),
   expiresAt: isoDate.nullable().optional(),
   /** Soma dias à validade (a partir de hoje, se já venceu). */
   extendDays: z.number().int().min(1).max(3660).optional(),
@@ -38,6 +39,7 @@ export const onRequestPatch = handle<Ctx>(async ({ request, env, params }) => {
   if (b.status !== undefined) patch.status = b.status;
   if (b.plan !== undefined) patch.plan = b.plan;
   if (b.maxUsers !== undefined) patch.max_users = b.maxUsers;
+  if (b.maxProducts !== undefined) patch.max_products = b.maxProducts;
   if (b.expiresAt !== undefined) patch.expires_at = b.expiresAt;
   if (b.extendDays) {
     const base = Math.max(Date.now(), cur.expires_at ? new Date(cur.expires_at).getTime() : 0);

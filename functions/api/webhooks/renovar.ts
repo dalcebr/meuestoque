@@ -11,7 +11,7 @@ import { email, slug } from '../../_lib/schemas';
  *
  * Header:  Authorization: Bearer <WEBHOOK_SECRET>
  * Corpo:   { "slug": "minha-loja", "days": 30, "plan": "profissional", "maxUsers": 3 }
- *          (ou "email" do dono no lugar de "slug")
+ *          (ou "email" do dono no lugar de "slug"; opcional "maxProducts": número ou null = sem limite)
  */
 const Renew = z
   .object({
@@ -20,6 +20,8 @@ const Renew = z
     days: z.number().int().min(1).max(3660),
     plan: z.string().trim().min(1).max(40).optional(),
     maxUsers: z.number().int().min(1).max(100).optional(),
+    /** null = sem limite */
+    maxProducts: z.number().int().min(0).max(1_000_000).nullable().optional(),
     unblock: z.boolean().optional().default(true),
   })
   .refine((v) => v.slug || v.email, { message: 'Informe "slug" ou "email".' });
@@ -46,6 +48,7 @@ export const onRequestPost = handle<EventContext<Env, string, unknown>>(async ({
   if (b.unblock) patch.status = 'active';
   if (b.plan) patch.plan = b.plan;
   if (b.maxUsers) patch.max_users = b.maxUsers;
+  if (b.maxProducts !== undefined) patch.max_products = b.maxProducts;
   const { error: uErr } = await sb.from('stores').update(patch).eq('id', store.id);
   if (uErr) throw new HttpError(500, uErr.message);
   await audit(sb, { store_id: store.id, action: 'store.renew_webhook', details: { store_name: store.name, dias: b.days, validade: patch.expires_at } });

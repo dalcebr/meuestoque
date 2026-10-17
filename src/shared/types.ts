@@ -10,6 +10,7 @@ export interface Store {
   status: StoreStatus;
   plan: string;
   max_users: number;
+  max_products: number | null;
   expires_at: string | null;
   owner_id: string | null;
   contact_name: string | null;

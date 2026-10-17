@@ -23,6 +23,8 @@ const CreateStore = z.object({
   password,
   plan: z.string().trim().min(1).max(40),
   maxUsers: z.number().int().min(1).max(100),
+  /** null = sem limite */
+  maxProducts: z.number().int().min(0).max(1_000_000).nullable().optional(),
   expiresAt: isoDate.nullable(),
   contactName: z.string().trim().max(80).nullable().optional(),
   contactPhone: z.string().trim().max(20).nullable().optional(),
@@ -46,6 +48,7 @@ export const onRequestPost = handle<Ctx>(async ({ request, env }) => {
         slug: b.slug,
         plan: b.plan,
         max_users: b.maxUsers,
+        max_products: b.maxProducts ?? null,
         expires_at: b.expiresAt,
         owner_id: owner.id,
         contact_name: b.contactName ?? b.ownerName,
@@ -65,9 +68,15 @@ export const onRequestPost = handle<Ctx>(async ({ request, env }) => {
     }
     // Catálogo já nasce com o nome da loja
     await sb.from('store_records').insert({
-      store_id: store.id, coll: 'catalog', id: 'main', data: { store: b.name }, client_id: 'server',
+      store_id: store.id, coll: 'catalog', id: 'main', data: {
+        store: b.name,
+        title: 'Confira nossos produtos',
+        desc: 'Escolha o que gostar, monte o carrinho e envie o pedido pelo WhatsApp.',
+        heroMode: 'color',
+      },
+      client_id: 'server',
     });
-    await audit(sb, { store_id: store.id, actor: user, action: 'store.create', details: { store_name: b.name, slug: b.slug, plano: b.plan, dono: b.ownerEmail, validade: b.expiresAt } });
+    await audit(sb, { store_id: store.id, actor: user, action: 'store.create', details: { store_name: b.name, slug: b.slug, plano: b.plan, produtos: b.maxProducts ?? 'sem limite', dono: b.ownerEmail, validade: b.expiresAt } });
     return json({ store }, 201);
   } catch (err) {
     await sb.auth.admin.deleteUser(owner.id).catch(() => undefined);

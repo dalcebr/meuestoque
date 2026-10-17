@@ -7,6 +7,8 @@
  *  - catalogUrl: devolve o link público da loja
  *  - pedidoLink: o link do pedido abre o painel em /app/
  *  - nome e botão Sair: vêm da conta logada (Supabase Auth)
+ *  - saveP: respeita o limite de produtos do plano
+ *  - editor de fotos: WebP com qualidade 0.9 (antes 1.0, arquivos muito maiores)
  */
 
 // Painel Início: tudo é calculado a partir dos dados reais (produtos, vendas e estoque).
@@ -237,7 +239,7 @@ $('cropOk').onclick=function(){
   var o=document.createElement('canvas');o.width=C.ow;o.height=C.oh;cdraw(o.getContext('2d'),C.ow,C.oh);
   o.toBlob(function(b){
     if(b&&b.type!=='image/webp')toast('Este navegador não gera WebP. A foto foi salva em '+b.type.split('/')[1].toUpperCase()+'.');
-    finish(b);$('cropDlg').close()},'image/webp',1);
+    finish(b);$('cropDlg').close()},'image/webp',0.9); /* [SaaS] 0.9: fotos bem menores, sem perda visível */
 };
 $('zoom').oninput=function(){C.s=C.contain+(C.cover*4-C.contain)*$('zoom').value/100;paint()};
 $('rot').onclick=function(){C.rot=(C.rot+1)%4;reset()};
@@ -342,7 +344,8 @@ function check(){
 }
 $('saveP').onclick=async function(){
   FIELDS.forEach(function(k){cur[k]=$('f-'+k).value.trim()});
-  var er=check();$('ferr').textContent=er;$('ferr').hidden=!er;if(er)return;
+  var er=check();if(!er&&!P.some(function(x){return x.id===cur.id}))er=window.SaaS.productLimitMessage(P.length); /* [SaaS] limite do plano */
+  $('ferr').textContent=er;$('ferr').hidden=!er;if(er)return;
   var p={id:cur.id||Date.now().toString(36),name:cur.name,desc:cur.desc,cat:cur.cat,sku:cur.sku,price:+cur.price,cost:+cur.cost||0,stock:parseInt(cur.stock),min:parseInt(cur.min)||0,imgs:cur.imgs,
     vars:cur.vars.map(function(g){return{name:g.name.trim(),opts:g.opts.map(function(o){return{n:o.n.trim(),q:o.q,p:o.p==null?null:o.p,c:o.c==null?null:o.c}})}})};
   var i=P.findIndex(function(x){return x.id===p.id});var old=P[i];if(i<0)P.unshift(p);else P[i]=p;if(!old&&p.stock>0)logMv(p,p.stock,'in','Estoque inicial');else if(old&&old.stock!==p.stock)logMv(p,p.stock-old.stock,'adj','Ajuste no cadastro do produto');
