@@ -1,0 +1,9 @@
+# Copie para .dev.vars para rodar as Functions localmente (npm run preview:cf).
+# Em produção, cadastre em Cloudflare Pages > Settings > Environment variables (como "Secret").
+SUPABASE_URL=https://SEU-PROJETO.supabase.co
+# Chave secreta: "service_role" (legada) ou "secret" (sb_secret_...). NUNCA exponha no front.
+SUPABASE_SERVICE_ROLE_KEY=
+# Token para a URL de renovação automática (gere um valor longo e aleatório)
+WEBHOOK_SECRET=
+# Opcional: domínio público do bucket R2. Vazio = fotos servidas em /media/ pelo próprio site.
+MEDIA_PUBLIC_URL=

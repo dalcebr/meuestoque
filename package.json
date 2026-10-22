@@ -1,0 +1,31 @@
+{
+  "name": "estoque-da-loja-saas",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Estoque, vendas e catálogo online para lojas — multi-loja com Supabase (Auth/Postgres/RLS) + Cloudflare Pages + R2.",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p functions/tsconfig.json --noEmit",
+    "check": "npm run typecheck && npm run build",
+    "preview:cf": "wrangler pages dev dist --port 8788",
+    "deploy": "npm run build && wrangler pages deploy dist",
+    "migrar:fotos": "node --env-file=.migracao.env scripts/migrar-fotos-r2.mjs"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.45.4",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20241022.0",
+    "@types/node": "^20.19.43",
+    "aws4fetch": "^1.0.20",
+    "typescript": "^5.6.3",
+    "vite": "^5.4.10",
+    "wrangler": "^3.84.0"
+  },
+  "engines": {
+    "node": ">=20.6"
+  }
+}

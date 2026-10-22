@@ -1,0 +1,8 @@
+[
+  {
+    "AllowedOrigins": ["https://seudominio.com.br", "http://localhost:5173", "http://localhost:8788"],
+    "AllowedMethods": ["GET", "HEAD"],
+    "AllowedHeaders": ["*"],
+    "MaxAgeSeconds": 86400
+  }
+]

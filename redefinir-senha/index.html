@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;700;800&display=swap" rel="stylesheet">
+<script>(function(){try{var t=localStorage.getItem("tema")}catch(e){}if(t!=="light"&&t!=="dark")t=matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light";document.documentElement.setAttribute("data-theme",t)})()</script>
+<title>Criar senha nova</title>
+<meta name="robots" content="noindex">
+</head>
+<body>
+<main class="center">
+  <div class="panel">
+    <div class="brand"><span class="logo"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z"/><path d="M4 7.5l8 4.5 8-4.5M12 12v9"/></svg></span><div>Estoque da Loja<small>Recuperação de senha</small></div></div>
+    <form id="form" novalidate>
+      <h1>Criar senha nova</h1>
+      <label class="fld"><span>Senha nova</span><input id="p1" type="password" autocomplete="new-password" minlength="8" required></label>
+      <label class="fld"><span>Repita a senha</span><input id="p2" type="password" autocomplete="new-password" minlength="8" required></label>
+      <p class="hint">Pelo menos 8 caracteres.</p>
+      <p id="err" class="err" role="alert" hidden></p>
+      <button class="btn main block" id="btn" type="submit">Salvar senha</button>
+    </form>
+    <div id="expired" hidden>
+      <h1>Link expirado</h1>
+      <p class="muted">Peça um link novo na tela de login.</p>
+      <a class="btn main block" href="/">Ir para o login</a>
+    </div>
+  </div>
+</main>
+<script type="module" src="/src/reset/main.ts"></script>
+</body>
+</html>

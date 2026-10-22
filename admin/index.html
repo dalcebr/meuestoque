@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;700;800&display=swap" rel="stylesheet">
+<script>(function(){try{var t=localStorage.getItem("tema")}catch(e){}if(t!=="light"&&t!=="dark")t=matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light";document.documentElement.setAttribute("data-theme",t)})()</script>
+<title>Administrador · Lojas</title>
+<meta name="robots" content="noindex">
+<style>
+.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;display:flex;align-items:center;gap:12px;padding:12px 20px;background:color-mix(in srgb,var(--bg) 86%,transparent);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);flex-wrap:wrap}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--bg)}
+.top .brand{margin:0;flex:1}
+.wrap{max-width:1180px;margin:0 auto;padding:8px 20px 56px;display:grid;grid-template-columns:minmax(0,1fr);gap:16px}
+.wrap>*{min-width:0}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px}
+.stat{background:var(--surface);border:1px solid var(--line);border-radius:20px;padding:16px 18px;text-align:left;cursor:pointer;color:var(--ink)}
+.stat[aria-pressed="true"]{border-color:var(--accent);background:var(--soft)}
+.stat b{display:block;font-size:1.8rem;font-weight:800;letter-spacing:-.03em;font-variant-numeric:tabular-nums;line-height:1.1}
+.stat span{color:var(--muted);font-weight:500;font-size:.9rem}
+.tools{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.tools input{flex:1 1 240px;min-height:44px;padding:10px 14px;border:1px solid var(--line);border-radius:14px;background:var(--surface)}
+.tabs{display:flex;gap:4px;background:var(--track);border-radius:14px;padding:4px;width:max-content}
+.tabs button{border:0;background:transparent;border-radius:11px;padding:8px 14px;font-weight:700;color:var(--muted)}
+.tabs button[aria-selected="true"]{background:var(--surface);color:var(--ink);box-shadow:var(--shadow)}
+.store b{display:block}
+.store a{font-size:.85rem}
+td.num{font-variant-numeric:tabular-nums;white-space:nowrap}
+.quick{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
+.use-bar{display:block;height:4px;border-radius:4px;background:var(--track);margin-top:4px;max-width:120px;overflow:hidden}
+.use-bar i{display:block;height:100%;background:var(--accent)}
+.use-bar.full i{background:var(--bad)}
+/* celular: cabeçalho compacto, números em 2 colunas e cada loja vira um cartão */
+@media (max-width:760px){
+  .top{padding:10px 14px;gap:8px}
+  .top .brand small{display:none}
+  .top .brand .logo{width:34px;height:34px}
+  .wrap{padding:4px 12px 40px;gap:12px}
+  .stats{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+  .stat{padding:12px 14px;border-radius:16px}
+  .stat b{font-size:1.4rem}
+  .stat span{font-size:.82rem}
+  .stats .stat:first-child{grid-column:1/-1}
+  #tab-stores,#tab-audit{padding:8px!important;background:transparent;border:0;box-shadow:none}
+  .tools{padding:0 0 8px!important}
+  body .table thead{display:none}
+  body .table,body .table tbody,body .table tr,body .table td{display:block;width:100%}
+  body .table tr{display:flex;flex-direction:column;background:var(--surface);border:1px solid var(--line);border-radius:18px;padding:14px 14px 10px;margin-bottom:10px}
+  body .table td{border:0;padding:5px 0;display:flex;gap:12px;justify-content:space-between;align-items:baseline;text-align:right}
+  body .table td::before{content:attr(data-label);color:var(--muted);font-size:.82rem;font-weight:500;text-align:left;flex:none}
+  body .table td.store{display:block;text-align:left;padding-bottom:8px}
+  body .table td.store::before,.table td.acts::before{content:none}
+  body .table td.acts{padding-top:10px}
+  body .table td.acts .row{width:100%}
+  body .table td.acts .btn{flex:1}
+  body .table td.empty{display:block;text-align:center}
+  body .table td.empty::before{content:none}
+  .use-bar{margin-left:auto}
+  #rows td.store{order:-2}
+  #rows td[data-label="Situação"]{order:-1;padding-bottom:8px}
+}
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="brand"><span class="logo"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z"/><path d="M4 7.5l8 4.5 8-4.5M12 12v9"/></svg></span><div><span id="appName">Estoque da Loja</span><small>Painel do administrador</small></div></div>
+  <a class="btn sm" href="/app/" id="myStore" hidden>Minha loja</a>
+  <button class="btn sm" id="themeBtn" type="button">Tema</button>
+  <button class="btn sm danger" id="outBtn" type="button">Sair</button>
+</header>
+<main class="wrap" id="wrap" hidden>
+  <div class="stats" id="stats"></div>
+  <div class="row between">
+    <div class="tabs" role="tablist">
+      <button role="tab" aria-selected="true" data-tab="stores">Lojas</button>
+      <button role="tab" aria-selected="false" data-tab="audit">Histórico</button>
+    </div>
+    <button class="btn main" id="newStore" type="button">Nova loja</button>
+  </div>
+
+  <section id="tab-stores" class="card" style="padding:12px">
+    <div class="tools" style="padding:4px 4px 10px"><input id="q" type="search" placeholder="Buscar loja, e-mail ou telefone" aria-label="Buscar"></div>
+    <div class="scroll-x"><table class="table">
+      <thead><tr><th>Loja</th><th>Dono</th><th>Plano</th><th>Validade</th><th>Uso</th><th>Situação</th><th></th></tr></thead>
+      <tbody id="rows"><tr><td colspan="7" class="empty">Carregando…</td></tr></tbody>
+    </table></div>
+  </section>
+
+  <section id="tab-audit" class="card" hidden style="padding:12px">
+    <div class="scroll-x"><table class="table">
+      <thead><tr><th>Ação</th><th>Quando</th><th>Quem</th><th>Detalhes</th></tr></thead>
+      <tbody id="auditRows"></tbody>
+    </table></div>
+  </section>
+</main>
+
+<main class="center" id="denied" hidden>
+  <div class="panel"><h1>Acesso restrito</h1><p class="muted">Esta área é só para administradores da plataforma.</p><a class="btn main block" href="/app/">Ir para o estoque</a></div>
+</main>
+
+<dialog class="dlg" id="storeDlg">
+  <form id="storeForm" novalidate>
+    <h2 id="sTitle">Nova loja</h2>
+    <p class="muted small" id="sSub" style="margin:0">Cria a loja e o acesso do dono. A senha provisória aparece uma única vez.</p>
+    <div class="ff">
+      <label class="fld"><span>Nome da loja</span><input id="sName" maxlength="120" autocomplete="off"></label>
+      <label class="fld"><span>Endereço do catálogo (/c/…)</span><input id="sSlug" maxlength="40" autocomplete="off" autocapitalize="off" spellcheck="false"></label>
+    </div>
+    <div class="ff" id="ownerFields">
+      <label class="fld"><span>Nome do dono</span><input id="sOwner" maxlength="80" autocomplete="off"></label>
+      <label class="fld"><span>E-mail do dono (login)</span><input id="sEmail" type="email" autocomplete="off" inputmode="email"></label>
+    </div>
+    <div class="ff">
+      <label class="fld"><span>WhatsApp do dono</span><input id="sPhone" inputmode="tel" maxlength="20" autocomplete="off" placeholder="(11) 99999-9999"></label>
+      <label class="fld"><span>Plano</span><select id="sPlan"></select></label>
+    </div>
+    <div class="ff">
+      <label class="fld"><span>Máximo de usuários</span><input id="sMax" type="number" min="1" max="100" step="1" inputmode="numeric"></label>
+      <label class="fld"><span>Máximo de produtos</span><input id="sProd" type="number" min="0" step="1" inputmode="numeric" placeholder="Sem limite"></label>
+    </div>
+    <label class="fld"><span>Fotos por produto</span><input id="sPhotos" type="number" min="1" max="50" step="1" inputmode="numeric"></label>
+    <p class="hint">Escolher um plano preenche os limites dele; você pode ajustar só para esta loja. Deixe produtos em branco para não limitar.</p>
+    <label class="fld"><span>Válido até</span><input id="sExp" type="date"></label>
+    <div class="quick" id="quick">
+      <button type="button" class="btn sm" data-days="7">+7 dias (teste)</button>
+      <button type="button" class="btn sm" data-days="30">+30 dias</button>
+      <button type="button" class="btn sm" data-days="90">+90 dias</button>
+      <button type="button" class="btn sm" data-days="365">+1 ano</button>
+      <button type="button" class="btn sm" data-days="0">Sem vencimento</button>
+    </div>
+    <label class="fld" id="statusWrap" hidden><span>Situação</span>
+      <select id="sStatus"><option value="active">Liberada</option><option value="blocked">Bloqueada</option></select></label>
+    <label class="fld"><span>Observações internas</span><textarea id="sNotes" maxlength="2000"></textarea></label>
+    <p class="err" id="sErr" hidden></p>
+    <div class="row between" style="margin-top:20px">
+      <div class="row" id="dangerActs" hidden>
+        <button type="button" class="btn sm" id="sReset">Nova senha do dono</button>
+        <button type="button" class="btn sm danger" id="sDelete">Excluir loja</button>
+      </div>
+      <div class="row" style="margin-left:auto">
+        <button type="button" class="btn" id="sCancel">Cancelar</button>
+        <button class="btn main" id="sSave">Salvar</button>
+      </div>
+    </div>
+  </form>
+</dialog>
+
+<dialog class="dlg" id="pwDlg">
+  <h2>Senha criada</h2>
+  <p class="muted" style="margin:0">Copie e entregue agora: ela não será mostrada de novo. No primeiro acesso a pessoa cria a própria senha.</p>
+  <div class="secret" id="pwShow"></div>
+  <div class="row end">
+    <a class="btn" id="pwWa" target="_blank" rel="noopener">Enviar no WhatsApp</a>
+    <button class="btn" type="button" id="pwCopy">Copiar dados</button>
+    <button class="btn main" type="button" id="pwClose">Entendi</button>
+  </div>
+</dialog>
+<script type="module" src="/src/admin/main.ts"></script>
+</body>
+</html>
