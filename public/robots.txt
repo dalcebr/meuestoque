@@ -1,6 +1,0 @@
-User-agent: *
-Allow: /c/
-Disallow: /app/
-Disallow: /admin/
-Disallow: /conta/
-Disallow: /api/
