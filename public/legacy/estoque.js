@@ -12,6 +12,8 @@
  *  - MAXF (fotos por produto) vem do plano da loja
  *  - opções de variação podem ter uma foto (o.img = índice em p.imgs); no catálogo,
  *    escolher a opção troca a foto principal
+ *  - cores do catálogo: campo com o código hexadecimal (#RRGGBB) ao lado de cada
+ *    seletor de cor, para colar ou digitar a cor exata
  */
 
 // Painel Início: tudo é calculado a partir dos dados reais (produtos, vendas e estoque).
@@ -1179,6 +1181,7 @@ function drawCatalogCfg(){
   document.querySelectorAll('#catBgMode button').forEach(function(b){b.setAttribute('aria-pressed',b.dataset.m===CAT.heroMode)});
   $('catBgColor').hidden=CAT.heroMode==='image';$('catBgImage').hidden=CAT.heroMode!=='image';
   $('catSw').innerHTML=COLORS.map(function(c){return'<button type="button" data-c="'+c[0]+'" aria-label="'+c[1]+'" aria-pressed="false" style="background:'+c[0]+'"></button>'}).join('')+'<input type="color" id="catColor" aria-label="Escolher outra cor" value="'+heroColor()+'">';
+  hexAttach($('catSw'));
   markCatSw();
   $('catImgPrev').hidden=!CAT.heroImg;$('catImgNone').hidden=!!CAT.heroImg;$('catImgDel').hidden=!CAT.heroImg;$('catImgEdit').hidden=!CAT.heroImg;
   if(CAT.heroImg)$('catImgPrev').src=blobUrl(CAT.heroImg);
@@ -1193,7 +1196,7 @@ function loadCatPrev(force){
 $('ctPrevBtn').onclick=function(){loadCatPrev(true);toast('Prévia atualizada.')};
 $('ctPrevOpen').onclick=function(){var url=catalogUrl();Promise.resolve(saveCat(true)).then(function(){window.open(url,'_blank','noopener')})};
 $('catBgMode').onclick=function(e){var b=e.target.closest('button');if(!b)return;CAT.heroMode=b.dataset.m;saveCat();drawCatalogCfg()};
-$('catSw').onclick=function(e){var b=e.target.closest('button');if(!b)return;CAT.heroColor=b.dataset.c;$('catColor').value=b.dataset.c;markCatSw();saveCat()};
+$('catSw').onclick=function(e){var b=e.target.closest('button');if(!b)return;CAT.heroColor=b.dataset.c;$('catColor').value=b.dataset.c;hexSync($('catColor'));markCatSw();saveCat()};
 $('catSw').oninput=function(e){if(e.target.id==='catColor'){CAT.heroColor=e.target.value;markCatSw();saveCat()}};
 $('catImgPick').onclick=function(){$('catImgFile').click()};
 $('catImgFile').onchange=async function(e){
@@ -1987,6 +1990,70 @@ function buildFontPickers(){
   document.addEventListener('keydown',function(e){if(e.key==='Escape')closeAll()});
 }
 buildFontPickers();
+/* ===== [SaaS] código hexadecimal ao lado dos seletores de cor do catálogo ===== */
+/* Aceita #RRGGBB, RRGGBB, #RGB ou RGB (com ou sem espaços). Devolve '' se inválido. */
+function hexNorm(v){
+  v=String(v||'').replace(/\s+/g,'').replace(/^#/,'');
+  if(/^[0-9a-f]{3}$/i.test(v))v=v.replace(/./g,'$&$&');
+  return /^[0-9a-f]{6}$/i.test(v)?'#'+v.toUpperCase():'';
+}
+/* põe um campo de texto com o código logo depois de cada <input type="color"> */
+function hexAttach(box){
+  if(!box)return;
+  box.querySelectorAll('input[type=color]').forEach(function(c){
+    var h=c.nextElementSibling;
+    if(!(h&&h.classList.contains('hexin'))){
+      h=document.createElement('input');
+      h.type='text';h.className='hexin';h.maxLength=9;h.spellcheck=false;
+      h.setAttribute('autocomplete','off');h.setAttribute('autocapitalize','characters');
+      h.setAttribute('aria-label',(c.getAttribute('aria-label')||'Cor')+' — código hexadecimal');
+      h.placeholder='#RRGGBB';
+      c.insertAdjacentElement('afterend',h);
+    }
+    hexSync(c);
+  });
+}
+/* atualiza o código depois que a cor muda por fora (amostra, automático, etc.) */
+function hexSync(c){
+  var h=c&&c.nextElementSibling;
+  if(h&&h.classList.contains('hexin')&&document.activeElement!==h){h.value=String(c.value||'').toUpperCase();h.classList.remove('bad')}
+}
+/* aplica o código digitado/colado na cor, disparando os mesmos eventos do seletor */
+function hexApply(h,commit){
+  var c=h.previousElementSibling;if(!c||c.type!=='color')return;
+  var raw=h.value.replace(/\s+/g,'').replace(/^#/,''),v=hexNorm(h.value);
+  if(!commit){ /* enquanto digita: só aplica quando o código está completo (6 dígitos) */
+    h.classList.remove('bad');
+    if(v&&raw.length===6&&v.toLowerCase()!==String(c.value).toLowerCase()){c.value=v.toLowerCase();c.dispatchEvent(new Event('input',{bubbles:true}))}
+    return;
+  }
+  if(!v){
+    if(raw)toast('Código de cor inválido. Use o formato #RRGGBB (ex.: #4F46E5).');
+    h.value=String(c.value||'').toUpperCase();h.classList.remove('bad');return;
+  }
+  h.value=v;
+  if(v.toLowerCase()!==String(c.value).toLowerCase()){c.value=v.toLowerCase();c.dispatchEvent(new Event('input',{bubbles:true}))}
+  c.dispatchEvent(new Event('change',{bubbles:true}));
+}
+document.addEventListener('input',function(e){
+  var t=e.target;if(!t||t.tagName!=='INPUT')return;
+  if(t.classList.contains('hexin')){hexApply(t,false);var r=t.value.replace(/\s+/g,'').replace(/^#/,'');t.classList.toggle('bad',r.length>=6&&!hexNorm(t.value))}
+  else if(t.type==='color')hexSync(t);
+});
+document.addEventListener('change',function(e){var t=e.target;if(t&&t.classList&&t.classList.contains('hexin'))hexApply(t,true)});
+document.addEventListener('keydown',function(e){var t=e.target;if(e.key==='Enter'&&t&&t.classList&&t.classList.contains('hexin')){e.preventDefault();t.blur()}});
+(function(){
+  var st=document.createElement('style');
+  st.textContent=
+    '.hexin{width:86px;flex:none;min-height:38px;padding:6px 8px;border:1px solid var(--line);border-radius:10px;background:var(--surface);color:var(--ink);'+
+    'font:600 .8rem/1.2 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;text-transform:uppercase;letter-spacing:.02em}'+
+    '.hexin::placeholder{color:var(--muted);font-weight:500}'+
+    '.hexin:focus{outline:2px solid var(--accent);outline-offset:1px;border-color:transparent}'+
+    '.hexin.bad{border-color:#dc2626;outline-color:#dc2626}'+
+    '.sw .hexin{min-height:44px;width:96px}'+
+    '.thm-f .hexin{order:1}.thm-f .thm-rst{order:2}';
+  document.head.appendChild(st);
+})();
 /* ===== painel de cores: cada detalhe do catálogo, por área e por modo ===== */
 var CAT_COL_SECS=(function(){try{return JSON.parse(localStorage.getItem('cat_col_secs')||'{}')||{}}catch(e){return{}}})();
 function catColSave(){try{localStorage.setItem('cat_col_secs',JSON.stringify(CAT_COL_SECS))}catch(e){}}
@@ -2038,7 +2105,7 @@ function themeGroupsHtml(){
 }
 function drawThemeCfg(){
   var th=thm();
-  if($('ctGroups'))$('ctGroups').innerHTML=themeGroupsHtml();
+  if($('ctGroups')){$('ctGroups').innerHTML=themeGroupsHtml();hexAttach($('ctGroups'))}
   $('ct-hf').innerHTML=fontOpts();$('ct-hf').value=th.headFont||'';
   $('ct-bf').innerHTML=fontOpts();$('ct-bf').value=th.bodyFont||'';
   document.querySelectorAll('#ctRadius button').forEach(function(b){b.setAttribute('aria-pressed',b.dataset.r===(th.radius==='sharp'?'sharp':'rounded'))});
@@ -2058,7 +2125,7 @@ function syncThemeGroups(){
     mEl.querySelectorAll('.thm-f').forEach(function(f){
       var el=f.querySelector('[data-k]');if(!el)return;
       var k=el.dataset.k,v=own[k];
-      if(el.type==='color'&&res[k]){el.value=res[k]}
+      if(el.type==='color'&&res[k]){el.value=res[k];hexSync(el)}
       else if(el.type==='range'){ /* tamanho / opacidade: volta ao valor guardado (ou ao padrão) */
         var op=fieldOpts(k);
         el.value=tuneNum(v,op.def,op.min,op.max);
