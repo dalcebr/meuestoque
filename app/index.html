@@ -537,6 +537,15 @@ body.cart-open #btt{right:calc(var(--drawer) + 20px)}
 /* L: SVG de imagem quebrada no lugar de "Sem foto" */
 .noimg svg{width:36px;height:36px;stroke:currentColor;fill:none;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round;opacity:.5}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}.pop{animation:none}.pc.skeleton .sk-img,.pc.skeleton .sk-line{animation:none}}
+/* [SaaS] barra de publicação do catálogo (rascunho x publicado) */
+.pubbar{position:sticky;bottom:calc(env(safe-area-inset-bottom,0px) + 12px);z-index:4;display:flex;align-items:center;gap:10px 14px;flex-wrap:wrap;margin-top:16px;padding:12px 14px;background:var(--surface);border:1px solid var(--line);border-radius:18px;box-shadow:0 10px 30px -12px rgba(18,20,29,.35)}
+.pubbar .pub-st{flex:1;min-width:180px;font-size:.88rem;color:var(--muted);line-height:1.35}
+.pubbar.dirty{border-color:var(--accent)}
+.pubbar.dirty .pub-st{color:var(--ink);font-weight:600}
+.pubbar.dirty .pub-st::before{content:'';display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--accent);margin-right:8px;vertical-align:1px}
+.pubbar .btn[disabled]{opacity:.5;cursor:default}
+body:has(#v-catalog:not([hidden])) #btt{bottom:calc(env(safe-area-inset-bottom,0px) + 96px)}
+@media (max-width:640px){body:has(#v-catalog:not([hidden])) #btt{bottom:calc(env(safe-area-inset-bottom,0px) + 150px)}.pubbar .acts{width:100%}.pubbar .acts .btn{flex:1}}
 </style>
 <script type="module" src="/src/app/bridge.ts"></script>
 </head>
@@ -738,11 +747,11 @@ body.cart-open #btt{right:calc(var(--drawer) + 20px)}
     <h3>Pedidos</h3>
     <p class="sub">Ao tocar em "Finalizar compra", o cliente envia uma mensagem curta com um link. Ao abrir esse link, aparece o código do pedido — você copia (botão <b>Copiar</b>) e cola em <b>Nova venda → Pedido do WhatsApp</b>, ou toca em <b>Preencher venda</b> e os itens entram sozinhos.</p>
     <div class="ff"><label class="fld w"><span>WhatsApp da loja (recebe os pedidos do carrinho)</span><input id="cat-whats" type="tel" maxlength="20" placeholder="(11) 99999-9999"></label></div>
-    <p class="sub" id="catSaved" style="margin-top:12px">As alterações são salvas automaticamente.</p>
+    <p class="sub" id="catSaved" style="margin-top:12px">As alterações ficam salvas como rascunho e só aparecem no catálogo depois de publicar.</p>
   </section>
   <section class="card">
     <h3>Aparência do catálogo</h3>
-    <p class="sub">Personalize fontes, cores e estilo. As mudanças aparecem no catálogo em tempo real.</p>
+    <p class="sub">Personalize fontes, cores e estilo. As mudanças aparecem na prévia na hora; no catálogo online, só depois de tocar em <b>Publicar</b>.</p>
     <div class="ff ct-ff" style="margin-top:14px">
       <div class="fld"><span>Fonte dos títulos</span>
         <div class="fpick" data-for="ct-hf">
@@ -778,7 +787,7 @@ body.cart-open #btt{right:calc(var(--drawer) + 20px)}
         </span>
       </div>
       <iframe id="ctPrev" title="Prévia do catálogo" loading="lazy"></iframe>
-      <p class="sub" style="margin:8px 0 0">Mostra o catálogo como o cliente vê. As cores mudam aqui na hora; se não mudar, toque em "Atualizar prévia".</p>
+      <p class="sub" style="margin:8px 0 0">Mostra o rascunho como o cliente vai ver depois de publicar. As cores mudam aqui na hora; se não mudar, toque em "Atualizar prévia".</p>
     </div>
     <div class="acts" style="margin-top:14px"><button type="button" class="btn" id="ctReset">Restaurar padrão</button></div>
   </section>
@@ -794,6 +803,13 @@ body.cart-open #btt{right:calc(var(--drawer) + 20px)}
     </div>
     <p class="sub" style="margin-top:12px">O ícone do WhatsApp usa o número configurado acima, em "Pedidos".</p>
   </section>
+  <div class="pubbar" id="catPub" role="region" aria-label="Publicação do catálogo">
+    <span class="pub-st" id="catPubSt" aria-live="polite">Tudo publicado.</span>
+    <span class="acts">
+      <button type="button" class="btn sm danger" id="catDiscard" hidden>Descartar alterações</button>
+      <button type="button" class="btn main" id="catPublish" disabled>Publicar</button>
+    </span>
+  </div>
 </main>
 </div>
 </div>

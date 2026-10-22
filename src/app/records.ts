@@ -5,14 +5,31 @@
  */
 import type { SupabaseClient } from '@supabase/supabase-js';
 
-export const COLLECTIONS = ['products', 'moves', 'sales', 'customers', 'catalog', 'presets'] as const;
+export const COLLECTIONS = ['products', 'moves', 'sales', 'customers', 'catalog', 'catalogDraft', 'presets'] as const;
 export type Collection = (typeof COLLECTIONS)[number];
 
 /** Coleções em que o item novo entra no começo da lista (unshift). */
 const NEWEST_FIRST: Record<Collection, boolean> = {
-  products: true, moves: true, sales: true, customers: true, catalog: false, presets: false,
+  products: true, moves: true, sales: true, customers: true, catalog: false, catalogDraft: false, presets: false,
 };
-const SINGLETON_ID = 'main';
+/**
+ * Chaves guardadas como um único registro. O rascunho do catálogo fica na mesma
+ * coleção do banco ('catalog'), com id 'draft'; o catálogo público só lê o 'main'.
+ */
+const SINGLETON: Partial<Record<Collection, string>> = { catalog: 'main', catalogDraft: 'draft' };
+/** Coleção no banco de cada chave. */
+const DB_COLL: Record<Collection, string> = {
+  products: 'products', moves: 'moves', sales: 'sales', customers: 'customers',
+  catalog: 'catalog', catalogDraft: 'catalog', presets: 'presets',
+};
+/** Chaves que podem usar as mesmas fotos (uma foto só é apagada se nenhuma delas usar). */
+const SHARES_MEDIA: Partial<Record<Collection, Collection[]>> = { catalog: ['catalogDraft'], catalogDraft: ['catalog'] };
+
+/** Chave da interface para um registro do banco. */
+function keyOf(coll: string, id: string): Collection | null {
+  if (coll === 'catalog') return id === 'draft' ? 'catalogDraft' : 'catalog';
+  return isCollection(coll) ? coll : null;
+}
 /** Bucket antigo do Supabase Storage (fotos de antes da migração para o R2). */
 const LEGACY_BUCKET = 'store-media';
 const LEGACY_MARK = `/storage/v1/object/public/${LEGACY_BUCKET}/`;
@@ -67,14 +84,19 @@ export class RecordStore {
         .order('seq', { ascending: true })
         .range(from, from + PAGE - 1);
       if (error) throw error;
-      for (const r of data ?? []) rows.get(r.coll as Collection)?.push(r as Row);
+      for (const r of data ?? []) {
+        const k = keyOf(String(r.coll), String(r.id));
+        if (k) rows.get(k)?.push(r as Row);
+      }
       if (!data || data.length < PAGE) break;
     }
     for (const c of COLLECTIONS) {
-      const list = rows.get(c)!;
+      let list = rows.get(c)!;
       if (NEWEST_FIRST[c]) list.reverse();
+      const one = SINGLETON[c];
+      if (one) list = list.filter((r) => r.id === one);
       this.snap.set(c, new Map(list.map((r) => [r.id, JSON.stringify(r.data)])));
-      if (c === 'catalog') out[c] = list.find((r) => r.id === SINGLETON_ID)?.data ?? null;
+      if (one) out[c] = list[0]?.data ?? null;
       else out[c] = list.length ? list.map((r) => r.data) : null;
     }
     return out;
@@ -87,8 +109,10 @@ export class RecordStore {
    */
   async save(coll: Collection, value: unknown): Promise<void> {
     const items: { id: string; data: Json }[] = [];
-    if (coll === 'catalog') {
-      if (value && typeof value === 'object') items.push({ id: SINGLETON_ID, data: await this.serialize(value) });
+    const one = SINGLETON[coll];
+    if (one) {
+      // null (ou lista) apaga o registro — ex.: restaurar backup limpa o rascunho do catálogo
+      if (value && typeof value === 'object' && !Array.isArray(value)) items.push({ id: one, data: await this.serialize(value) });
     } else if (Array.isArray(value)) {
       for (const it of value) {
         const id = it && typeof it === 'object' && 'id' in it ? String((it as { id: unknown }).id) : '';
@@ -116,7 +140,7 @@ export class RecordStore {
       const ids = removed.slice(i, i + CHUNK);
       const { error } = await this.client
         .from('store_records').delete()
-        .eq('store_id', this.storeId).eq('coll', coll).in('id', ids);
+        .eq('store_id', this.storeId).eq('coll', DB_COLL[coll]).in('id', ids);
       if (error) throw error;
       ids.forEach((id) => saved.delete(id));
     }
@@ -139,6 +163,10 @@ export class RecordStore {
     for (const id of [...removed, ...updates.map((u) => u.id)]) this.collectUrls(prev.get(id), before);
     const after = new Set<string>();
     for (const json of next.values()) this.collectUrls(json, after);
+    // Fotos que outra chave ainda usa (ex.: imagem do catálogo publicado enquanto o rascunho muda)
+    for (const other of SHARES_MEDIA[coll] ?? []) {
+      for (const json of this.snap.get(other)?.values() ?? []) this.collectUrls(json, after);
+    }
     const orphan = [...before].filter((u) => !after.has(u));
     if (orphan.length) void this.removeMedia(orphan).catch(() => undefined);
   }
@@ -173,7 +201,7 @@ export class RecordStore {
 
   private async upsert(coll: Collection, rows: { id: string; data: Json }[]): Promise<void> {
     const { error } = await this.client.from('store_records').upsert(
-      rows.map((r) => ({ store_id: this.storeId, coll, id: r.id, data: r.data, client_id: CLIENT_ID })),
+      rows.map((r) => ({ store_id: this.storeId, coll: DB_COLL[coll], id: r.id, data: r.data, client_id: CLIENT_ID })),
       { onConflict: 'store_id,coll,id' },
     );
     if (!error) return;

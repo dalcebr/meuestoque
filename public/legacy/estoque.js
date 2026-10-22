@@ -14,6 +14,8 @@
  *    escolher a opção troca a foto principal
  *  - cores do catálogo: campo com o código hexadecimal (#RRGGBB) ao lado de cada
  *    seletor de cor, para colar ou digitar a cor exata
+ *  - catálogo com rascunho: as edições ficam em 'catalogDraft' e só vão para o
+ *    catálogo público ('catalog') ao tocar em Publicar; a prévia mostra o rascunho
  */
 
 // Painel Início: tudo é calculado a partir dos dados reais (produtos, vendas e estoque).
@@ -374,12 +376,16 @@ $('delBtn').onclick=async function(){
   delete b.dataset.sure;b.textContent='Excluir produto';
   P=P.filter(function(x){return x.id!==cur.id});await kvSet('products',P);syncStock();render();showList();drawReports();toast('Produto excluído.');
 };
-idb().then(function(){return Promise.all([kvGet('products'),kvGet('moves'),kvGet('sales'),kvGet('customers'),kvGet('catalog'),kvGet('presets')])}).then(function(r){
+idb().then(function(){return Promise.all([kvGet('products'),kvGet('moves'),kvGet('sales'),kvGet('customers'),kvGet('catalog'),kvGet('presets'),kvGet('catalogDraft')])}).then(function(r){
   if(Array.isArray(r[0]))P=r[0];
   if(Array.isArray(r[1]))M=r[1];
   if(Array.isArray(r[2]))S=r[2];
   if(Array.isArray(r[3]))CLI=r[3];
   if(r[4]&&typeof r[4]==='object')CAT=Object.assign({},CAT_DEF,r[4]);
+  CAT_PUB=r[4]&&typeof r[4]==='object'?r[4]:null;
+  if(r[6]&&typeof r[6]==='object'){CAT=Object.assign({},CAT_DEF,r[6]);CAT_DIRTY=JSON.stringify(r[6])!==JSON.stringify(CAT_PUB)}
+  if(CATALOG){var dr=catDraftFromPanel();if(dr)CAT=Object.assign({},CAT_DEF,dr)} /* prévia: mostra o rascunho do painel */
+  updatePub();
   if(Array.isArray(r[5]))PRE=r[5];else if(r[5]==null){PRE=seedPre();kvSet('presets',PRE)}
   window.__loaded=true; /* B: dados carregados — skeletons desaparecem */
   syncStock();syncSales();render();
@@ -1134,6 +1140,57 @@ function catRevPing(mode){
   try{localStorage.setItem('cat_rev',JSON.stringify({t:Date.now(),mode:mode||''}))}catch(e){try{localStorage.setItem('cat_rev',rev)}catch(e2){}}
   if(CAT_BC){try{CAT_BC.postMessage({cat:1,mode:mode||''})}catch(e){}}
 }
+/* ===== rascunho x publicado =====
+   CAT = o que você edita (rascunho, salvo na nuvem como 'catalogDraft');
+   CAT_PUB = o que está no ar ('catalog'). Só "Publicar" copia o rascunho para o ar. */
+var CAT_PUB=null,CAT_DIRTY=false,CAT_PUBBING=false;
+if(!CATALOG)window.__catDraft=function(){return CAT}; /* a prévia (iframe ou aba aberta daqui) lê o rascunho */
+/* na prévia: pega o rascunho direto do painel que a abriu (mesmo site), sem passar pelo catálogo público */
+function catDraftFromPanel(){
+  if(!CATPREV)return null;
+  try{
+    var w=window.parent!==window?window.parent:window.opener;
+    var d=w&&w.__catDraft&&w.__catDraft();
+    if(!d||typeof d!=='object')return null;
+    try{return structuredClone(d)}catch(e){return JSON.parse(JSON.stringify(d))}
+  }catch(e){return null}
+}
+function updatePub(msg){
+  var bar=$('catPub');if(!bar||CATALOG)return;
+  bar.classList.toggle('dirty',CAT_DIRTY);
+  $('catPubSt').textContent=msg||(CAT_DIRTY
+    ?'Alterações não publicadas. Seus clientes ainda veem a versão anterior.'
+    :'Tudo publicado. O catálogo online está igual à prévia.');
+  $('catPublish').disabled=!CAT_DIRTY||CAT_PUBBING;
+  $('catDiscard').hidden=!CAT_DIRTY||!CAT_PUB;
+  $('catDiscard').disabled=CAT_PUBBING;
+}
+function catClone(o){
+  if(o==null||typeof o!=='object'||o instanceof Blob)return o;
+  if(Array.isArray(o))return o.map(catClone);
+  var r={};Object.keys(o).forEach(function(k){r[k]=catClone(o[k])});return r;
+}
+function publishCat(){
+  if(!CAT_DIRTY||CAT_PUBBING)return;
+  clearTimeout(catT);CAT_PUBBING=true;updatePub('Publicando…');
+  var snap=catClone(CAT);
+  Promise.all([kvSet('catalogDraft',CAT),kvSet('catalog',CAT)]).then(function(){
+    CAT_PUBBING=false;CAT_PUB=snap;
+    CAT_DIRTY=JSON.stringify(CAT)!==JSON.stringify(snap); /* algo mudou durante a publicação? continua pendente */
+    updatePub();catRevPing('');
+    toast('Catálogo publicado. Seus clientes já veem as alterações.');
+  });
+}
+function discardCat(){
+  var b=$('catDiscard');if(!CAT_DIRTY||!CAT_PUB||CAT_PUBBING)return;
+  if(!b.dataset.sure){b.dataset.sure=1;b.textContent='Confirmar descarte';setTimeout(function(){delete b.dataset.sure;b.textContent='Descartar alterações'},3500);return}
+  delete b.dataset.sure;b.textContent='Descartar alterações';
+  clearTimeout(catT);
+  CAT=Object.assign({},CAT_DEF,catClone(CAT_PUB));CAT_DIRTY=false;
+  kvSet('catalogDraft',null).then(function(){catRevPing('')});
+  drawCatalogCfg();applyCatTheme();updatePub();
+  toast('Alterações descartadas. Voltou para a versão publicada.');
+}
 function catalogUrl(){return window.SaaS.catalogUrl()}
 function catName(){return(CAT.store||'').trim()||'Catálogo'}
 function inkFor(c){var n=parseInt(c.slice(1),16),l=(0.299*(n>>16)+0.587*(n>>8&255)+0.114*(n&255))/255;return l>0.62?'#10131C':'#fff'}
@@ -1194,7 +1251,7 @@ function loadCatPrev(force){
   f.src=catalogUrl()+(catalogUrl().indexOf('?')>=0?'&':'?')+'previa='+Date.now();
 }
 $('ctPrevBtn').onclick=function(){loadCatPrev(true);toast('Prévia atualizada.')};
-$('ctPrevOpen').onclick=function(){var url=catalogUrl();Promise.resolve(saveCat(true)).then(function(){window.open(url,'_blank','noopener')})};
+$('ctPrevOpen').onclick=function(){var url=catalogUrl();window.open(url+(url.indexOf('?')>=0?'&':'?')+'previa='+Date.now(),'_blank')};
 $('catBgMode').onclick=function(e){var b=e.target.closest('button');if(!b)return;CAT.heroMode=b.dataset.m;saveCat();drawCatalogCfg()};
 $('catSw').onclick=function(e){var b=e.target.closest('button');if(!b)return;CAT.heroColor=b.dataset.c;$('catColor').value=b.dataset.c;hexSync($('catColor'));markCatSw();saveCat()};
 $('catSw').oninput=function(e){if(e.target.id==='catColor'){CAT.heroColor=e.target.value;markCatSw();saveCat()}};
@@ -1249,18 +1306,22 @@ initCatCollapse();
 $('catTheme').onclick=function(){var t=root.getAttribute('data-theme')==='dark'?'light':'dark';root.setAttribute('data-theme',t);set('tema_cat',t);applyCatTheme(t)};
 function saveCat(now,mode){
   clearTimeout(catT);
-  var go=function(){return kvSet('catalog',CAT).then(function(){
-    var s=$('catSaved');if(s)s.textContent='Alterações salvas.';
-    catRevPing(mode); /* avisa o catálogo aberto (outra aba ou a prévia) */
+  CAT_DIRTY=true;updatePub(CAT_PUBBING?'Publicando…':'Salvando rascunho…');
+  var go=function(){return kvSet('catalogDraft',CAT).then(function(){
+    var s=$('catSaved');if(s)s.textContent='Rascunho salvo. Toque em Publicar para aparecer no catálogo.';
+    if(!CAT_PUBBING)updatePub();
+    catRevPing(mode); /* avisa a prévia (ela mostra o rascunho) */
   })};
   if(now)return go();
   return new Promise(function(r){catT=setTimeout(function(){go().then(function(){r()},function(){r()})},DEBOUNCE)});
 }
-['store','title','desc','whats','email','tel','insta','face','tiktok'].forEach(function(k){$('cat-'+k).oninput=function(){CAT[k]=this.value;$('catSaved').textContent='Salvando…';saveCat();if(k!=='title'&&k!=='desc')drawCatFoot()}});
+['store','title','desc','whats','email','tel','insta','face','tiktok'].forEach(function(k){$('cat-'+k).oninput=function(){CAT[k]=this.value;$('catSaved').textContent='Salvando rascunho…';saveCat();if(k!=='title'&&k!=='desc')drawCatFoot()}});
 $('catOpen').onclick=function(){
-  var url=catalogUrl();
-  Promise.resolve(saveCat(true)).then(function(){window.open(url,'_blank','noopener')});
+  if(CAT_DIRTY)toast('Abrindo a versão publicada. As alterações ainda não publicadas aparecem só na prévia.');
+  window.open(catalogUrl(),'_blank','noopener');
 };
+if($('catPublish'))$('catPublish').onclick=publishCat;
+if($('catDiscard'))$('catDiscard').onclick=discardCat;
 function legacyCopy(){var i=$('catUrl');i.focus();i.select();try{return document.execCommand('copy')}catch(e){return false}}
 $('catCopy').onclick=function(){
   var done=function(ok){toast(ok?'Link do catálogo copiado.':'Não foi possível copiar. Selecione o link e copie manualmente.')};
@@ -2218,7 +2279,7 @@ if(CATALOG)drawCatalogPage();
 /* catálogo aberto (aba, janela ou prévia): recarrega sozinho quando a aparência é salva no estoque */
 if(CATALOG){
   var aplicarRev=function(mode){
-    idb().then(function(){return kvGet('catalog')}).then(function(c){
+    idb().then(function(){return catDraftFromPanel()||kvGet('catalog')}).then(function(c){
       if(!c||typeof c!=='object')return;
       if(JSON.stringify(c)===JSON.stringify(CAT)&&!mode)return; /* nada mudou */
       CAT=Object.assign({},CAT_DEF,c);
